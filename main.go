@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -79,9 +80,70 @@ func setWebHook(req setWebHookReq) error {
 }
 
 func handleNewUpdate(c *gin.Context) {
-	var req map[string]interface{}
-	c.Bind(&req)
-	log.Printf("received updates: %s", req)
+	var update Update
+	c.Bind(&update)
+
+	log.Printf("received update: %#v", update)
+
+	go sendResponse()
+}
+
+func sendResponse() {
+
+}
+
+type sendMessageReq struct {
+	ChatID UnionIntString `json:"chat_id"`
+}
+
+// UnionIntString union type of int and string
+type UnionIntString struct {
+	int
+	string
+}
+
+func (u UnionIntString) IsInt() bool {
+	if u.int != 0 {
+		return true
+	}
+
+	if u.string != "" {
+		return false
+	}
+
+	return true
+}
+
+// MarshalJSON implement json.Marshaler interface
+// marshal int first
+func (u UnionIntString) MarshalJSON() ([]byte, error) {
+	if !u.IsInt() {
+		return []byte("\"" + u.string + "\""), nil
+
+	}
+
+	return []byte(strconv.Itoa(u.int)), nil
+}
+
+// UnmarshalJSON implement  json.Unmarshaler interface
+func (u *UnionIntString) UnmarshalJSON(data []byte) error {
+	switch data[0] {
+	case '"':
+		u.string = string(data[1 : len(data)-1])
+		return nil
+	default:
+		if n, err := strconv.Atoi(string(data)); err != nil {
+			return fmt.Errorf("%s is not UnionIntString", string(data))
+		} else {
+			u.int = n
+		}
+	}
+
+	return nil
+}
+
+func sendMessage() {
+
 }
 
 func isHttpStatusOK(code int) bool {

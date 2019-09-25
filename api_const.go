@@ -35,3 +35,27 @@ type ResponseParameters struct {
 	// the number of seconds left to wait before the request can be repeated
 	RetryAfter int `json:"retry_after"`
 }
+
+type Update struct {
+	// Optional. New incoming message of any kind — text, photo, sticker, etc.
+	Message Message `json:"message"`
+}
+
+type Message struct {
+	Chat Chat `json:"chat"`
+	// Optional. For text messages, the actual UTF-8 text of the message, 0-4096 characters.
+	Text string `json:"text"`
+}
+
+type Chat struct {
+	Type ChatType `json:"chat"`
+}
+
+type ChatType string
+
+const (
+	ChatTypePrivate    ChatType = "private"
+	ChatTypeGroup      ChatType = "group"
+	ChatTypeSuperGroup ChatType = "supergroup"
+	ChatTypeChannel    ChatType = "channel"
+)
