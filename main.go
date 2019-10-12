@@ -1,14 +1,8 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,115 +31,38 @@ func main() {
 	r.Run() // listen and serve on 0.0.0.0:8080
 }
 
-type setWebHookReq struct {
-	URL string `json:"url"`
-	// TODO: tls settings
-	Certificate    interface{} `json:"certificate,omitempty"`
-	MaxConnections int         `json:"max_connections,omitempty"`
-	// List the types of updates you want your bot to receive.
-	AllowedUpdates []string `json:"allowed_updates,omitempty"`
-}
-
-func setWebHook(req setWebHookReq) error {
-	log.Printf("set up webhook: %v", req)
-
-	const method = "setWebhook"
-	uri := getApiURI(method)
-
-	b, _ := json.Marshal(req)
-	resp, err := http.Post(uri, "application/json", bytes.NewReader(b))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	b, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	if !isHttpStatusOK(resp.StatusCode) {
-		return fmt.Errorf("setWebHook failed [%d]: %s", resp.StatusCode, string(b))
-	}
-
-	var botApiResp BotAPIResponse
-	if err := json.Unmarshal(b, &botApiResp); err != nil {
-		return err
-	}
-
-	if !botApiResp.OK {
-		return fmt.Errorf("setWebHook failed %s", botApiResp.Description)
-	}
-
-	return nil
-}
-
 func handleNewUpdate(c *gin.Context) {
 	var update Update
 	c.Bind(&update)
 
 	log.Printf("received update: %#v", update)
 
-	go sendResponse()
+	sendResponse(update.Message)
 }
 
-func sendResponse() {
-
-}
-
-type sendMessageReq struct {
-	ChatID UnionIntString `json:"chat_id"`
-}
-
-// UnionIntString union type of int and string
-type UnionIntString struct {
-	int
-	string
-}
-
-func (u UnionIntString) IsInt() bool {
-	if u.int != 0 {
-		return true
+func sendResponse(m Message) {
+	if err := reverseMessage(m); err != nil {
+		log.Printf("reverseMessage error: %s", err)
 	}
+}
 
-	if u.string != "" {
-		return false
+func reverseMessage(m Message) error {
+	req := sendMessageReq{
+		ChatID:           UnionIntString{int64: m.Chat.ID},
+		Text:             Reverse(m.Text),
+		ReplyToMessageID: m.MessageID,
 	}
-
-	return true
+	return sendMessage(req)
 }
 
-// MarshalJSON implement json.Marshaler interface
-// marshal int first
-func (u UnionIntString) MarshalJSON() ([]byte, error) {
-	if !u.IsInt() {
-		return []byte("\"" + u.string + "\""), nil
-
+// Reverse reverse string
+func Reverse(in string) string {
+	runes := []rune(in)
+	low, high := 0, len(runes)-1
+	for low < high {
+		runes[low], runes[high] = runes[high], runes[low]
+		low++
+		high--
 	}
-
-	return []byte(strconv.Itoa(u.int)), nil
-}
-
-// UnmarshalJSON implement  json.Unmarshaler interface
-func (u *UnionIntString) UnmarshalJSON(data []byte) error {
-	switch data[0] {
-	case '"':
-		u.string = string(data[1 : len(data)-1])
-		return nil
-	default:
-		if n, err := strconv.Atoi(string(data)); err != nil {
-			return fmt.Errorf("%s is not UnionIntString", string(data))
-		} else {
-			u.int = n
-		}
-	}
-
-	return nil
-}
-
-func sendMessage() {
-
-}
-
-func isHttpStatusOK(code int) bool {
-	return code/200 == 1
+	return string(runes)
 }

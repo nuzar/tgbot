@@ -41,16 +41,26 @@ type Update struct {
 	Message Message `json:"message"`
 }
 
+// Message this object represents a message.
 type Message struct {
-	Chat Chat `json:"chat"`
+	// Unique message identifier inside this chat
+	MessageID int  `json:"message_id"`
+	Chat      Chat `json:"chat"`
 	// Optional. For text messages, the actual UTF-8 text of the message, 0-4096 characters.
 	Text string `json:"text"`
+	// Date the message was sent in Unix time
+	Data int64 `json:"date"`
 }
 
+// Chat This object represents a chat.
 type Chat struct {
-	Type ChatType `json:"chat"`
+	// Unique identifier for this chat. This number may be greater than 32 bits, but it is smaller than 52 bits
+	ID    int64    `json:"id" validate:"required"`
+	Type  ChatType `json:"chat" validate:"required"`
+	Title string   `json:"title"`
 }
 
+// ChatType type of chat
 type ChatType string
 
 const (
