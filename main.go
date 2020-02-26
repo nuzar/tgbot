@@ -1,24 +1,26 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 var (
-	// Token is telegram api token
-	Token = os.Getenv("API_TOKEN")
-	// URL is our service's webhook url
-	URL = os.Getenv("WEBHOOK_URL")
+	// BotToken is telegram api token
+	BotToken = MustGetEnv("TG_API_TOKEN")
+	// WebHookURL is our service's webhook url
+	WebHookURL = MustGetEnv("TG_WEBHOOK_URL")
 )
 
 // WebhookPath updates receiver router path
 const WebhookPath = "/update"
 
 func main() {
-	if err := setWebHook(setWebHookReq{URL: URL + WebhookPath}); err != nil {
+	if err := setWebHook(setWebHookReq{URL: WebHookURL + WebhookPath}); err != nil {
 		log.Fatal(err)
 	}
 
@@ -28,35 +30,38 @@ func main() {
 	})
 	r.POST(WebhookPath, handleNewUpdate)
 
-	r.Run() // listen and serve on 0.0.0.0:8080
+	log.Fatal(r.Run()) // listen and serve on 0.0.0.0:8080
 }
 
 func handleNewUpdate(c *gin.Context) {
 	var update Update
-	c.Bind(&update)
+	err := c.Bind(&update)
+	if err != nil {
+		logrus.Errorf("invalid update: %s", err)
+	}
 
-	log.Printf("received update: %#v", update)
+	logrus.Infof("received update: %#v", update)
 
 	sendResponse(update.Message)
 }
 
 func sendResponse(m Message) {
-	if err := reverseMessage(m); err != nil {
-		log.Printf("reverseMessage error: %s", err)
+	if err := sendReverseMsg(m); err != nil {
+		logrus.Errorf("reverseMessage error: %s", err)
 	}
 }
 
-func reverseMessage(m Message) error {
+func sendReverseMsg(m Message) error {
 	req := sendMessageReq{
 		ChatID:           UnionIntString{int64: m.Chat.ID},
-		Text:             Reverse(m.Text),
+		Text:             reverse(m.Text),
 		ReplyToMessageID: m.MessageID,
 	}
 	return sendMessage(req)
 }
 
 // Reverse reverse string
-func Reverse(in string) string {
+func reverse(in string) string {
 	runes := []rune(in)
 	low, high := 0, len(runes)-1
 	for low < high {
@@ -65,4 +70,12 @@ func Reverse(in string) string {
 		high--
 	}
 	return string(runes)
+}
+
+func MustGetEnv(key string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		panic(fmt.Errorf("cannot get %s", key))
+	}
+	return val
 }

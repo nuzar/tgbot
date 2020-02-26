@@ -4,11 +4,6 @@ import (
 	"testing"
 )
 
-type S struct {
-	int
-	string
-}
-
 func TestReverse(t *testing.T) {
 	type args struct {
 		in string
@@ -41,7 +36,7 @@ func TestReverse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Reverse(tt.args.in); got != tt.want {
+			if got := reverse(tt.args.in); got != tt.want {
 				t.Errorf("Reverse() = %v, want %v", got, tt.want)
 			}
 		})

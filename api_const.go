@@ -6,7 +6,7 @@ import "fmt"
 const BotAPI = "https://api.telegram.org/bot%s/%s"
 
 func getApiURI(method string) string {
-	return fmt.Sprintf(BotAPI, Token, method)
+	return fmt.Sprintf(BotAPI, BotToken, method)
 }
 
 // BotAPIResponse BotAPI response
