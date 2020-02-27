@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
+
+	"github.com/nuzar/tgbot/log"
 )
 
 type setWebHookReq struct {
@@ -19,7 +20,7 @@ type setWebHookReq struct {
 }
 
 func setWebHook(req setWebHookReq) error {
-	log.Printf("set up webhook: %v", req)
+	log.S.Infof("set up webhook: %v", req)
 
 	const method = "setWebhook"
 	uri := getApiURI(method)

@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
+
+	"github.com/nuzar/tgbot/log"
 )
 
 type sendMessageReq struct {
@@ -28,7 +29,7 @@ type sendMessageReq struct {
 
 func sendMessage(req sendMessageReq) error {
 	const method = "sendMessage"
-	log.Printf("sendMessage: %v", req)
+	log.S.Debugf("sendMessage: %v", req)
 
 	uri := getApiURI(method)
 

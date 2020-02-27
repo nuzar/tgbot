@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
+	"github.com/nuzar/tgbot/log"
 )
 
 var (
@@ -21,7 +20,7 @@ const WebhookPath = "/update"
 
 func main() {
 	if err := setWebHook(setWebHookReq{URL: WebHookURL + WebhookPath}); err != nil {
-		log.Fatal(err)
+		log.S.Fatal(err)
 	}
 
 	r := gin.Default()
@@ -30,24 +29,24 @@ func main() {
 	})
 	r.POST(WebhookPath, handleNewUpdate)
 
-	log.Fatal(r.Run()) // listen and serve on 0.0.0.0:8080
+	log.S.Fatal(r.Run()) // listen and serve on 0.0.0.0:8080
 }
 
 func handleNewUpdate(c *gin.Context) {
 	var update Update
 	err := c.Bind(&update)
 	if err != nil {
-		logrus.Errorf("invalid update: %s", err)
+		log.S.Errorf("invalid update: %s", err)
 	}
 
-	logrus.Infof("received update: %#v", update)
+	log.S.Infof("received update: %#v", update)
 
 	sendResponse(update.Message)
 }
 
 func sendResponse(m Message) {
 	if err := sendReverseMsg(m); err != nil {
-		logrus.Errorf("reverseMessage error: %s", err)
+		log.S.Errorf("reverseMessage error: %s", err)
 	}
 }
 
