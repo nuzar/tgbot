@@ -17,4 +17,4 @@ tgbot
 
 # local env
 .env
-local.sh
+local

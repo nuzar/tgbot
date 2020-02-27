@@ -7,20 +7,21 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var (
-	L *zap.Logger
-	S *zap.SugaredLogger
-)
+var L *zap.SugaredLogger
 
-func Init() {
+func Init(lvl zapcore.Level) {
 	writeSyncer := zapcore.AddSync(os.Stdout)
-	encoderCfg := zap.NewProductionEncoderConfig()
-	encoder := zapcore.NewConsoleEncoder(encoderCfg)
-	core := zapcore.NewCore(encoder, writeSyncer, zapcore.DebugLevel)
 
-	L = zap.New(core, zap.AddCaller())
-	S = L.Sugar()
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	encoder := zapcore.NewConsoleEncoder(encoderConfig)
 
-	zap.RedirectStdLog(L)
-	zap.ReplaceGlobals(L)
+	core := zapcore.NewCore(encoder, writeSyncer, lvl)
+	logger := zap.New(core)
+	L = logger.Sugar()
+
+	zap.RedirectStdLog(logger)
+	zap.ReplaceGlobals(logger)
 }
