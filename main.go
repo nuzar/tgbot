@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/nuzar/tgbot/log"
@@ -18,6 +19,7 @@ var (
 	BotToken = MustGetEnv("TG_API_TOKEN")
 	// WebHookURL is our service's webhook url
 	WebHookURL = os.Getenv("TG_WEBHOOK_URL")
+	PORT       = os.Getenv("PORT")
 )
 
 func main() {
@@ -92,7 +94,17 @@ func setupWebHook(_ context.Context, bot *tgbotapi.BotAPI) tgbotapi.UpdatesChann
 	}
 	updates := bot.ListenForWebhook("/")
 	go func() {
-		err := http.ListenAndServe("0.0.0.0:8080", nil)
+		port := "8080"
+		if PORT != "" {
+			_, err := strconv.Atoi(PORT)
+			if err != nil {
+				log.L.Error("invalid port ", PORT)
+			} else {
+				port = PORT
+			}
+		}
+		log.L.Info("listen on port ", port)
+		err := http.ListenAndServe(":"+port, nil)
 		if err != nil {
 			log.L.Fatal(err)
 		}
