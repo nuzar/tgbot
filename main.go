@@ -19,7 +19,8 @@ var (
 	BotToken = MustGetEnv("TG_API_TOKEN")
 	// WebHookURL is our service's webhook url
 	WebHookURL = os.Getenv("TG_WEBHOOK_URL")
-	PORT       = os.Getenv("PORT")
+	// PORT is listen port
+	PORT = os.Getenv("PORT")
 )
 
 func main() {
@@ -37,12 +38,14 @@ func main() {
 	log.L.Info("setup finish")
 	defer shutdown(bot)
 
-	go processUpdates(ctx, bot, updatesCh)
-
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt)
-	<-sigCh
-	cancel()
+	go func() {
+		<-sigCh
+		cancel()
+	}()
+
+	processUpdates(ctx, bot, updatesCh)
 }
 
 func setup(ctx context.Context) (*tgbotapi.BotAPI, tgbotapi.UpdatesChannel, error) {
@@ -52,7 +55,7 @@ func setup(ctx context.Context) (*tgbotapi.BotAPI, tgbotapi.UpdatesChannel, erro
 	if err != nil {
 		return nil, nil, err
 	}
-	log.L.Infof("Authorized on account %s", bot.Self.UserName)
+	log.L.Infof("authorized on account %s", bot.Self.UserName)
 
 	var updates tgbotapi.UpdatesChannel
 	if WebHookURL == "" {
@@ -118,15 +121,18 @@ func processUpdates(ctx context.Context, bot *tgbotapi.BotAPI, updates tgbotapi.
 		select {
 		case update := <-updates:
 			if update.Message == nil { // ignore any non-Message Updates
+				log.L.Debug("received nil message")
 				continue
 			}
-			log.L.
-				With("username", update.Message.From.UserName).
-				With("text", update.Message.Text).
-				Info("received update")
+
+			l := log.L.
+				With("username", update.Message.From.UserName)
+			l.With("text", update.Message.Text).Info("received update")
+
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, reverse(update.Message.Text))
-			msg.ReplyToMessageID = update.Message.MessageID
-			_, _ = bot.Send(msg)
+			if _, err := bot.Send(msg); err != nil {
+				l.With("err", err.Error()).Error("send message failed")
+			}
 		case <-ctx.Done():
 			log.L.Info(ctx.Err())
 			return
@@ -144,19 +150,20 @@ func shutdown(bot *tgbotapi.BotAPI) {
 
 	info, err := bot.GetWebhookInfo()
 	if err != nil {
-		log.L.Error(err)
+		log.L.Error(fmt.Errorf("get web hook failed: %w", err))
 	}
 	if info.IsSet() {
 		log.L.Info("delete webhook")
 		resp, err := bot.MakeRequest("deleteWebhook", url.Values{})
 		if err != nil {
-			log.L.With("resp", resp, "err", err).Error("delete webhook failed")
+			log.L.With("resp", resp, "err", err.Error()).Error("delete webhook failed")
 		}
 	}
 
 	_ = log.L.Sync()
 }
 
+// MustGetEnv get env or panic
 func MustGetEnv(key string) string {
 	val := os.Getenv(key)
 	if val == "" {
