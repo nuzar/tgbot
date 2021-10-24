@@ -4,14 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/nuzar/tgbot/log"
-	"go.uber.org/zap/zapcore"
+	"github.com/phuslu/log"
 )
 
 var (
@@ -26,16 +23,15 @@ var (
 func main() {
 	var err error
 
-	log.Init(zapcore.DebugLevel)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	bot, updatesCh, err := setup(ctx)
 	if err != nil {
-		log.L.Fatal(err)
+		log.Error().Err(err).Msg("")
+		return
 	}
-	log.L.Info("setup finish")
+	log.Info().Msg("setup finish")
 	defer shutdown(bot)
 
 	sigCh := make(chan os.Signal, 1)
@@ -55,93 +51,99 @@ func setup(ctx context.Context) (*tgbotapi.BotAPI, tgbotapi.UpdatesChannel, erro
 	if err != nil {
 		return nil, nil, err
 	}
-	log.L.Infof("authorized on account %s", bot.Self.UserName)
+	log.Info().Msgf("authorized on account %s", bot.Self.UserName)
 
 	var updates tgbotapi.UpdatesChannel
 	if WebHookURL == "" {
-		log.L.Info("setup long polling")
-		updates = setUpPolling(ctx, bot)
+		log.Info().Msg("setup long polling")
+		updates, err = setUpPolling(ctx, bot)
 	} else {
-		log.L.Info("setup web hook")
-		updates = setupWebHook(ctx, bot)
+		log.Info().Msg("setup web hook")
+		updates, err = setupWebHook(ctx, bot)
 	}
 
-	return bot, updates, nil
+	return bot, updates, err
 }
 
-func setUpPolling(_ context.Context, bot *tgbotapi.BotAPI) tgbotapi.UpdatesChannel {
+func setUpPolling(_ context.Context, bot *tgbotapi.BotAPI) (tgbotapi.UpdatesChannel, error) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
 	updates, err := bot.GetUpdatesChan(u)
 	if err != nil {
-		log.L.Fatal(err)
+		log.Error().Err(err).Msg("")
+		return nil, err
 	}
-	return updates
+	return updates, nil
 }
 
-func setupWebHook(_ context.Context, bot *tgbotapi.BotAPI) tgbotapi.UpdatesChannel {
-	log.L.Info("webhook url: ", WebHookURL)
+func setupWebHook(_ context.Context, bot *tgbotapi.BotAPI) (tgbotapi.UpdatesChannel, error) {
+	log.Info().Msgf("webhook url: %s", WebHookURL)
 
 	_, err := bot.SetWebhook(tgbotapi.NewWebhook(WebHookURL))
 	if err != nil {
-		log.L.Fatal(err)
+		log.Error().Err(err).Msg("")
+		return nil, err
 	}
 
 	info, err := bot.GetWebhookInfo()
 	if err != nil {
-		log.L.Fatal(err)
+		log.Error().Err(err).Msg("")
+		return nil, err
 	}
 	if info.LastErrorDate != 0 {
-		log.L.Errorf("Telegram callback failed: %s", info.LastErrorMessage)
+		log.Error().Msgf("Telegram callback failed: %s", info.LastErrorMessage)
 	}
 	updates := bot.ListenForWebhook("/")
 	go func() {
 		port := "8080"
 		if PORT != "" {
-			_, err := strconv.Atoi(PORT)
-			if err != nil {
-				log.L.Error("invalid port ", PORT)
-			} else {
-				port = PORT
-			}
+			port = PORT
 		}
-		log.L.Info("listen on port ", port)
-		err := http.ListenAndServe(":"+port, nil)
-		if err != nil {
-			log.L.Fatal(err)
+		log.Info().Msgf("listen on port %s", port)
+
+		if err := http.ListenAndServe(":"+port, nil); err != nil {
+			log.Error().Err(err).Msg("")
 		}
 	}()
 
-	return updates
+	return updates, nil
 }
 
 func processUpdates(ctx context.Context, bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesChannel) {
+	handler := func(update tgbotapi.Update) {
+		if update.Message == nil { // ignore any non-Message Updates
+			log.Debug().Msg("received nil message")
+			return
+		}
+
+		log.Info().
+			Str("username", update.Message.From.UserName).
+			Str("text", update.Message.Text).
+			Msg("received update")
+
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, reverse(update.Message.Text))
+		if _, err := bot.Send(msg); err != nil {
+			log.Error().Err(err).Msg("send message failed")
+		}
+	}
+
 	for {
 		select {
 		case update := <-updates:
-			if update.Message == nil { // ignore any non-Message Updates
-				log.L.Debug("received nil message")
-				continue
-			}
-
-			l := log.L.
-				With("username", update.Message.From.UserName)
-			l.With("text", update.Message.Text).Info("received update")
-
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, reverse(update.Message.Text))
-			if _, err := bot.Send(msg); err != nil {
-				l.With("err", err.Error()).Error("send message failed")
-			}
+			handler(update)
 		case <-ctx.Done():
-			log.L.Info(ctx.Err())
+			log.Info().Msg(ctx.Err().Error())
+			for update := range updates {
+				handler(update)
+			}
 			return
 		}
 	}
 }
 
 func shutdown(bot *tgbotapi.BotAPI) {
-	log.L.Info("shutdown")
+	log.Info().Msg("shutdown")
 	if bot == nil {
 		return
 	}
@@ -150,17 +152,15 @@ func shutdown(bot *tgbotapi.BotAPI) {
 
 	info, err := bot.GetWebhookInfo()
 	if err != nil {
-		log.L.Error(fmt.Errorf("get web hook failed: %w", err))
+		log.Error().Err(err).Msg("get web hook failed")
 	}
 	if info.IsSet() {
-		log.L.Info("delete webhook")
-		resp, err := bot.MakeRequest("deleteWebhook", url.Values{})
+		log.Info().Msg("delete webhook")
+		resp, err := bot.MakeRequest("deleteWebhook", nil)
 		if err != nil {
-			log.L.With("resp", resp, "err", err.Error()).Error("delete webhook failed")
+			log.Error().Err(err).Msgf("delete webhook failed: %+v", resp)
 		}
 	}
-
-	_ = log.L.Sync()
 }
 
 // MustGetEnv get env or panic
