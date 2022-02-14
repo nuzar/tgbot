@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/signal"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/phuslu/log"
 )
 
@@ -62,34 +62,29 @@ func setup(ctx context.Context) (*tgbotapi.BotAPI, tgbotapi.UpdatesChannel, erro
 		updates, err = setupWebHook(ctx, bot)
 	}
 
-	return bot, updates, err
+	return bot, updates, fmt.Errorf("setup failed: %w", err)
 }
 
 func setUpPolling(_ context.Context, bot *tgbotapi.BotAPI) (tgbotapi.UpdatesChannel, error) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
-	updates, err := bot.GetUpdatesChan(u)
-	if err != nil {
-		log.Error().Err(err).Msg("")
-		return nil, err
-	}
+	updates := bot.GetUpdatesChan(u)
+
 	return updates, nil
 }
 
 func setupWebHook(_ context.Context, bot *tgbotapi.BotAPI) (tgbotapi.UpdatesChannel, error) {
 	log.Info().Msgf("webhook url: %s", WebHookURL)
 
-	_, err := bot.SetWebhook(tgbotapi.NewWebhook(WebHookURL))
-	if err != nil {
-		log.Error().Err(err).Msg("")
-		return nil, err
+	wh, _ := tgbotapi.NewWebhook(WebHookURL)
+	if _, err := bot.Request(wh); err != nil {
+		return nil, fmt.Errorf("request with webhook config failed: %w", err)
 	}
 
 	info, err := bot.GetWebhookInfo()
 	if err != nil {
-		log.Error().Err(err).Msg("")
-		return nil, err
+		return nil, fmt.Errorf("get web hook info failed: %w", err)
 	}
 	if info.LastErrorDate != 0 {
 		log.Error().Msgf("Telegram callback failed: %s", info.LastErrorMessage)
