@@ -1,12 +1,11 @@
-FROM golang:1.16-alpine3.14 AS build
+FROM docker.io/library/golang:1.18-alpine3.15 AS build
 COPY . /app
 WORKDIR /app
-ENV GOPROXY="https://goproxy.cn"
-RUN go build .
+RUN go build -buildvcs=false .
 
 
-FROM alpine:3.14 AS prod
+FROM docker.io/library/alpine:3.15 AS prod
 COPY --from=build /app/tgbot /app/
 WORKDIR /app
 EXPOSE 8080
-ENTRYPOINT [ "/app/tgbot" ]
+CMD [ "/app/tgbot" ]

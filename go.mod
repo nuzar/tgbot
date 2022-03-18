@@ -1,9 +1,10 @@
 module github.com/nuzar/tgbot
 
-go 1.14
+go 1.18
 
 require (
-	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1 // indirect
+	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/phuslu/log v1.0.75
-	github.com/technoweenie/multipartstreamer v1.0.1 // indirect
 )
+
+require github.com/google/wire v0.5.0

@@ -18,3 +18,6 @@ tgbot
 # local env
 .env
 local
+
+# go
+vendor/
